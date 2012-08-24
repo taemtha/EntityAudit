@@ -88,7 +88,7 @@ class AuditReader
             if ($columnList) {
                 $columnList .= ', ';
             }
-            $columnList .= $class->getQuotedColumnName($field, $this->platform) .' AS ' . $field;
+            $columnList .= $class->getQuotedColumnName($field, $this->platform) .' AS ' . $this->platform->quoteIdentifier($field) .'';
         }
         foreach ($class->associationMappings AS $assoc) {
             if ( ($assoc['type'] & ClassMetadata::TO_ONE) > 0 && $assoc['isOwningSide']) {
@@ -96,7 +96,7 @@ class AuditReader
                     if ($columnList) {
                         $columnList .= ', ';
                     }
-                    $columnList .= $sourceCol;
+                    $columnList .= $this->platform->quoteIdentifier($sourceCol);
                 }
             }
         }
@@ -214,23 +214,29 @@ class AuditReader
         $changedEntities = array();
         foreach ($auditedEntities AS $className) {
             $class = $this->em->getClassMetadata($className);
+
+            if ( $class->getReflectionClass()->isAbstract() ) {
+                continue;
+            }
+
             $tableName = $this->config->getTablePrefix() . $class->table['name'] . $this->config->getTableSuffix();
 
             $whereSQL = "e." . $this->config->getRevisionFieldName() ." = ?";
             $columnList = "e." . $this->config->getRevisionTypeFieldName();
             foreach ($class->fieldNames AS $field) {
-                $columnList .= ', ' . $class->getQuotedColumnName($field, $this->platform) .' AS ' . $field;
+                $columnList .= ', ' . $class->getQuotedColumnName($field, $this->platform) .' AS ' . $this->platform->quoteIdentifier($field) ;
             }
             foreach ($class->associationMappings AS $assoc) {
                 if ( ($assoc['type'] & ClassMetadata::TO_ONE) > 0 && $assoc['isOwningSide']) {
                     foreach ($assoc['targetToSourceKeyColumns'] as $sourceCol) {
-                        $columnList .= ', ' . $sourceCol;
+                        $columnList .= ', ' . $this->platform->quoteIdentifier($sourceCol);
                     }
                 }
             }
 
             $this->platform = $this->em->getConnection()->getDatabasePlatform();
             $query = "SELECT " . $columnList . " FROM " . $tableName . " e WHERE " . $whereSQL;
+
             $revisionsData = $this->em->getConnection()->executeQuery($query, array($revision));
 
             foreach ($revisionsData AS $row) {
